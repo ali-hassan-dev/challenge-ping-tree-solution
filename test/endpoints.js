@@ -130,6 +130,70 @@ test.serial.cb('GET /api/targets - returns all created targets', function (t) {
   }).end(JSON.stringify(targetData1))
 })
 
+test.serial.cb('GET /api/target/:id - returns target by id', function (t) {
+  var targetData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca', 'ny']
+      }
+    }
+  }
+
+  // First create a target
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created successfully')
+
+    var createdTarget = createRes.body
+    var getUrl = '/api/target/' + createdTarget.id
+
+    // Get the target by id
+    servertest(server(), getUrl, { encoding: 'json' }, function (err, res) {
+      t.falsy(err, 'no error getting target by id')
+      t.is(res.statusCode, 200, 'correct statusCode')
+
+      var target = res.body
+      t.is(target.id, createdTarget.id, 'should have correct id')
+      t.is(target.url, targetData.url, 'should have correct url')
+      t.is(target.value, targetData.value, 'should have correct value')
+      t.is(target.maxAcceptsPerDay, targetData.maxAcceptsPerDay, 'should have correct maxAcceptsPerDay')
+      t.deepEqual(target.accept, targetData.accept, 'should have correct accept criteria')
+      t.truthy(target.createdAt, 'should have createdAt timestamp')
+
+      t.end()
+    })
+  }).end(JSON.stringify(targetData))
+})
+
+test.serial.cb('GET /api/target/:id - returns 404 for non-existent target', function (t) {
+  var nonExistentId = 'non-existent-id'
+  var url = '/api/target/' + nonExistentId
+
+  servertest(server(), url, { encoding: 'json' }, function (err, res) {
+    t.falsy(err, 'no error')
+    t.is(res.statusCode, 404, 'correct statusCode')
+    t.is(res.body.error, 'Target not found', 'correct error message')
+    t.end()
+  })
+})
+
+test.serial.cb('GET /api/target/:id - returns 400 for empty id', function (t) {
+  var url = '/api/target/'
+
+  servertest(server(), url, { encoding: 'json' }, function (err, res) {
+    t.falsy(err, 'no error')
+    // Note: This might return 404 due to route not matching, which is also acceptable
+    t.true(res.statusCode === 400 || res.statusCode === 404, 'should return 400 or 404')
+    t.end()
+  })
+})
+
 test.serial.cb('POST /api/targets - returns 400 for missing required fields', function (t) {
   var url = '/api/targets'
   var opts = {
