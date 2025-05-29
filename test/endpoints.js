@@ -208,3 +208,177 @@ test.serial.cb('POST /api/targets - returns 400 for missing required fields', fu
     t.end()
   }).end(JSON.stringify({}))
 })
+
+test.serial.cb('POST /api/target/:id - updates target successfully', function (t) {
+  var originalData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca', 'ny']
+      }
+    }
+  }
+
+  var updateData = {
+    url: 'http://updated-example.com',
+    value: '0.75',
+    maxAcceptsPerDay: '15'
+  }
+
+  // First create a target
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created successfully')
+
+    var createdTarget = createRes.body
+    var updateUrl = '/api/target/' + createdTarget.id
+    var updateOpts = { method: 'POST', encoding: 'json' }
+
+    // Update the target
+    servertest(server(), updateUrl, updateOpts, function (err, res) {
+      t.falsy(err, 'no error updating target')
+      t.is(res.statusCode, 200, 'correct statusCode')
+
+      var updatedTarget = res.body
+      t.is(updatedTarget.id, createdTarget.id, 'should have same id')
+      t.is(updatedTarget.url, updateData.url, 'should have updated url')
+      t.is(updatedTarget.value, updateData.value, 'should have updated value')
+      t.is(updatedTarget.maxAcceptsPerDay, updateData.maxAcceptsPerDay, 'should have updated maxAcceptsPerDay')
+      t.deepEqual(updatedTarget.accept, originalData.accept, 'should keep original accept criteria')
+      t.is(updatedTarget.createdAt, createdTarget.createdAt, 'should keep original createdAt')
+      t.truthy(updatedTarget.updatedAt, 'should have updatedAt timestamp')
+
+      t.end()
+    }).end(JSON.stringify(updateData))
+  }).end(JSON.stringify(originalData))
+})
+
+test.serial.cb('POST /api/target/:id - updates only provided fields', function (t) {
+  var originalData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca']
+      }
+    }
+  }
+
+  var partialUpdateData = {
+    value: '0.99'
+  }
+
+  // First create a target
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created successfully')
+
+    var createdTarget = createRes.body
+    var updateUrl = '/api/target/' + createdTarget.id
+    var updateOpts = { method: 'POST', encoding: 'json' }
+
+    // Update only the value
+    servertest(server(), updateUrl, updateOpts, function (err, res) {
+      t.falsy(err, 'no error updating target')
+      t.is(res.statusCode, 200, 'correct statusCode')
+
+      var updatedTarget = res.body
+      t.is(updatedTarget.id, createdTarget.id, 'should have same id')
+      t.is(updatedTarget.url, originalData.url, 'should keep original url')
+      t.is(updatedTarget.value, partialUpdateData.value, 'should have updated value')
+      t.is(updatedTarget.maxAcceptsPerDay, originalData.maxAcceptsPerDay, 'should keep original maxAcceptsPerDay')
+      t.deepEqual(updatedTarget.accept, originalData.accept, 'should keep original accept criteria')
+      t.is(updatedTarget.createdAt, createdTarget.createdAt, 'should keep original createdAt')
+      t.truthy(updatedTarget.updatedAt, 'should have updatedAt timestamp')
+
+      t.end()
+    }).end(JSON.stringify(partialUpdateData))
+  }).end(JSON.stringify(originalData))
+})
+
+test.serial.cb('POST /api/target/:id - returns 404 for non-existent target', function (t) {
+  var nonExistentId = 'non-existent-id'
+  var url = '/api/target/' + nonExistentId
+  var updateData = { value: '0.75' }
+  var opts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), url, opts, function (err, res) {
+    t.falsy(err, 'no error')
+    t.is(res.statusCode, 404, 'correct statusCode')
+    t.is(res.body.error, 'Target not found', 'correct error message')
+    t.end()
+  }).end(JSON.stringify(updateData))
+})
+
+test.serial.cb('POST /api/target/:id - returns 400 for empty update data', function (t) {
+  var originalData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: { geoState: { $in: ['ca'] } }
+  }
+
+  // First create a target
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created successfully')
+
+    var createdTarget = createRes.body
+    var updateUrl = '/api/target/' + createdTarget.id
+    var updateOpts = { method: 'POST', encoding: 'json' }
+
+    // Try to update with empty data
+    servertest(server(), updateUrl, updateOpts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 400, 'correct statusCode')
+      t.truthy(res.body.error, 'should have error message')
+      t.end()
+    }).end(JSON.stringify({}))
+  }).end(JSON.stringify(originalData))
+})
+
+test.serial.cb('POST /api/target/:id - returns 400 for invalid update fields', function (t) {
+  var originalData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: { geoState: { $in: ['ca'] } }
+  }
+
+  var invalidUpdateData = {
+    invalidField: 'invalid'
+  }
+
+  // First create a target
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created successfully')
+
+    var createdTarget = createRes.body
+    var updateUrl = '/api/target/' + createdTarget.id
+    var updateOpts = { method: 'POST', encoding: 'json' }
+
+    // Try to update with invalid fields
+    servertest(server(), updateUrl, updateOpts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 400, 'correct statusCode')
+      t.truthy(res.body.error, 'should have error message')
+      t.end()
+    }).end(JSON.stringify(invalidUpdateData))
+  }).end(JSON.stringify(originalData))
+})
