@@ -382,3 +382,287 @@ test.serial.cb('POST /api/target/:id - returns 400 for invalid update fields', f
     }).end(JSON.stringify(invalidUpdateData))
   }).end(JSON.stringify(originalData))
 })
+
+test.serial.cb('POST /route - accepts visitor matching target criteria', function (t) {
+  var targetData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca', 'ny']
+      },
+      hour: {
+        $in: ['13', '14', '15']
+      }
+    }
+  }
+
+  var visitorInfo = {
+    geoState: 'ca',
+    publisher: 'abc',
+    timestamp: '2018-07-19T14:28:59.513Z'
+  }
+
+  // Create a target first
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created')
+
+    // Test the route decision
+    var routeUrl = '/route'
+    var routeOpts = { method: 'POST', encoding: 'json' }
+
+    servertest(server(), routeUrl, routeOpts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 200, 'correct statusCode')
+      t.is(res.body.decision, 'accept', 'should accept visitor')
+      t.is(res.body.url, targetData.url, 'should return target url')
+      t.end()
+    }).end(JSON.stringify(visitorInfo))
+  }).end(JSON.stringify(targetData))
+})
+
+test.serial.cb('POST /route - rejects visitor not matching geoState criteria', function (t) {
+  var targetData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca', 'ny']
+      }
+    }
+  }
+
+  var visitorInfo = {
+    geoState: 'tx',
+    publisher: 'abc',
+    timestamp: '2018-07-19T14:28:59.513Z'
+  }
+
+  // Create a target first
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created')
+
+    // Test the route decision
+    var routeUrl = '/route'
+    var routeOpts = { method: 'POST', encoding: 'json' }
+
+    servertest(server(), routeUrl, routeOpts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 200, 'correct statusCode')
+      t.is(res.body.decision, 'reject', 'should reject visitor')
+      t.falsy(res.body.url, 'should not return url')
+      t.end()
+    }).end(JSON.stringify(visitorInfo))
+  }).end(JSON.stringify(targetData))
+})
+
+test.serial.cb('POST /route - rejects visitor not matching hour criteria', function (t) {
+  var targetData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca']
+      },
+      hour: {
+        $in: ['13', '14', '15']
+      }
+    }
+  }
+
+  var visitorInfo = {
+    geoState: 'ca',
+    publisher: 'abc',
+    timestamp: '2018-07-19T10:28:59.513Z' // Hour 10, not in accepted range
+  }
+
+  // Create a target first
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created')
+
+    // Test the route decision
+    var routeUrl = '/route'
+    var routeOpts = { method: 'POST', encoding: 'json' }
+
+    servertest(server(), routeUrl, routeOpts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 200, 'correct statusCode')
+      t.is(res.body.decision, 'reject', 'should reject visitor')
+      t.falsy(res.body.url, 'should not return url')
+      t.end()
+    }).end(JSON.stringify(visitorInfo))
+  }).end(JSON.stringify(targetData))
+})
+
+test.serial.cb('POST /route - returns highest value target when multiple match', function (t) {
+  var targetData1 = {
+    url: 'http://example1.com',
+    value: '0.50',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca']
+      }
+    }
+  }
+
+  var targetData2 = {
+    url: 'http://example2.com',
+    value: '0.75',
+    maxAcceptsPerDay: '10',
+    accept: {
+      geoState: {
+        $in: ['ca']
+      }
+    }
+  }
+
+  var visitorInfo = {
+    geoState: 'ca',
+    publisher: 'abc',
+    timestamp: '2018-07-19T14:28:59.513Z'
+  }
+
+  // Create first target
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, res1) {
+    t.falsy(err, 'no error creating first target')
+    t.is(res1.statusCode, 201, 'first target created')
+
+    // Create second target
+    servertest(server(), createUrl, createOpts, function (err, res2) {
+      t.falsy(err, 'no error creating second target')
+      t.is(res2.statusCode, 201, 'second target created')
+
+      // Test the route decision
+      var routeUrl = '/route'
+      var routeOpts = { method: 'POST', encoding: 'json' }
+
+      servertest(server(), routeUrl, routeOpts, function (err, res) {
+        t.falsy(err, 'no error')
+        t.is(res.statusCode, 200, 'correct statusCode')
+        t.is(res.body.decision, 'accept', 'should accept visitor')
+        t.is(res.body.url, targetData2.url, 'should return highest value target url')
+        t.end()
+      }).end(JSON.stringify(visitorInfo))
+    }).end(JSON.stringify(targetData2))
+  }).end(JSON.stringify(targetData1))
+})
+
+test.serial.cb('POST /route - rejects when target exceeds daily limit', function (t) {
+  var targetData = {
+    url: 'http://example.com',
+    value: '0.50',
+    maxAcceptsPerDay: '1',
+    accept: {
+      geoState: {
+        $in: ['ca']
+      }
+    }
+  }
+
+  var visitorInfo = {
+    geoState: 'ca',
+    publisher: 'abc',
+    timestamp: '2018-07-19T14:28:59.513Z'
+  }
+
+  // Create a target first
+  var createUrl = '/api/targets'
+  var createOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), createUrl, createOpts, function (err, createRes) {
+    t.falsy(err, 'no error creating target')
+    t.is(createRes.statusCode, 201, 'target created')
+
+    var routeUrl = '/route'
+    var routeOpts = { method: 'POST', encoding: 'json' }
+
+    // First request should be accepted
+    servertest(server(), routeUrl, routeOpts, function (err, res1) {
+      t.falsy(err, 'no error on first request')
+      t.is(res1.statusCode, 200, 'correct statusCode')
+      t.is(res1.body.decision, 'accept', 'should accept first visitor')
+
+      // Second request should be rejected (daily limit reached)
+      servertest(server(), routeUrl, routeOpts, function (err, res2) {
+        t.falsy(err, 'no error on second request')
+        t.is(res2.statusCode, 200, 'correct statusCode')
+        t.is(res2.body.decision, 'reject', 'should reject second visitor')
+        t.falsy(res2.body.url, 'should not return url')
+        t.end()
+      }).end(JSON.stringify(visitorInfo))
+    }).end(JSON.stringify(visitorInfo))
+  }).end(JSON.stringify(targetData))
+})
+
+test.serial.cb('POST /route - rejects when no targets exist', function (t) {
+  var visitorInfo = {
+    geoState: 'ca',
+    publisher: 'abc',
+    timestamp: '2018-07-19T14:28:59.513Z'
+  }
+
+  var routeUrl = '/route'
+  var routeOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), routeUrl, routeOpts, function (err, res) {
+    t.falsy(err, 'no error')
+    t.is(res.statusCode, 200, 'correct statusCode')
+    t.is(res.body.decision, 'reject', 'should reject when no targets')
+    t.falsy(res.body.url, 'should not return url')
+    t.end()
+  }).end(JSON.stringify(visitorInfo))
+})
+
+test.serial.cb('POST /route - returns 400 for missing required fields', function (t) {
+  var incompleteVisitorInfo = {
+    geoState: 'ca'
+    // Missing publisher and timestamp
+  }
+
+  var routeUrl = '/route'
+  var routeOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), routeUrl, routeOpts, function (err, res) {
+    t.falsy(err, 'no error')
+    t.is(res.statusCode, 400, 'correct statusCode')
+    t.truthy(res.body.error, 'should have error message')
+    t.end()
+  }).end(JSON.stringify(incompleteVisitorInfo))
+})
+
+test.serial.cb('POST /route - returns 400 for invalid timestamp', function (t) {
+  var invalidVisitorInfo = {
+    geoState: 'ca',
+    publisher: 'abc',
+    timestamp: 'invalid-timestamp'
+  }
+
+  var routeUrl = '/route'
+  var routeOpts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), routeUrl, routeOpts, function (err, res) {
+    t.falsy(err, 'no error')
+    t.is(res.statusCode, 400, 'correct statusCode')
+    t.truthy(res.body.error, 'should have error message')
+    t.end()
+  }).end(JSON.stringify(invalidVisitorInfo))
+})
