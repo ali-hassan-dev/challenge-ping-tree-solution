@@ -5,11 +5,7 @@ var servertest = require('servertest')
 
 var server = require('../lib/server')
 var redis = require('../lib/redis')
-var constants = require('../lib/constants')
-
-var API_URLS = constants.API_URLS
-var TEST_DATA = constants.TEST_DATA
-var ERROR_MESSAGES = constants.ERROR_MESSAGES
+var { API_URLS, TEST_DATA, ERROR_MESSAGES } = require('../lib/constants')
 
 // Clear Redis before each test
 test.beforeEach.cb(function (t) {
