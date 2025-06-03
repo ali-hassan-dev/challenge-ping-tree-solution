@@ -182,13 +182,12 @@ test.serial.cb(
         t.is(res.statusCode, 200, 'correct statusCode')
 
         var updatedTarget = res.body
-        validateTargetUpdate(
-          t,
+        validateTargetUpdate(t, {
           updatedTarget,
           createdTarget,
           updateData,
           originalData
-        )
+        })
         t.end()
       })
     })
@@ -211,13 +210,12 @@ test.serial.cb(
         t.is(res.statusCode, 200, 'correct statusCode')
 
         var updatedTarget = res.body
-        validatePartialTargetUpdate(
-          t,
+        validatePartialTargetUpdate(t, {
           updatedTarget,
           createdTarget,
           partialUpdateData,
           originalData
-        )
+        })
         t.end()
       })
     })
@@ -525,13 +523,9 @@ function validateTargetStructure (t, target) {
   t.truthy(target.createdAt, 'target should have createdAt')
 }
 
-function validateTargetUpdate (
-  t,
-  updatedTarget,
-  createdTarget,
-  updateData,
-  originalData
-) {
+function validateTargetUpdate (t, options) {
+  var { updatedTarget, createdTarget, updateData, originalData } = options
+
   t.is(updatedTarget.id, createdTarget.id, 'should have same id')
   t.is(updatedTarget.url, updateData.url, 'should have updated url')
   t.is(updatedTarget.value, updateData.value, 'should have updated value')
@@ -553,13 +547,10 @@ function validateTargetUpdate (
   t.truthy(updatedTarget.updatedAt, 'should have updatedAt timestamp')
 }
 
-function validatePartialTargetUpdate (
-  t,
-  updatedTarget,
-  createdTarget,
-  partialUpdateData,
-  originalData
-) {
+function validatePartialTargetUpdate (t, options) {
+  var { updatedTarget, createdTarget, partialUpdateData, originalData } =
+    options
+
   t.is(updatedTarget.id, createdTarget.id, 'should have same id')
   t.is(updatedTarget.url, originalData.url, 'should keep original url')
   t.is(
