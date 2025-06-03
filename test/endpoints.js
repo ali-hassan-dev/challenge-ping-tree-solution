@@ -44,6 +44,60 @@ test.serial.cb('POST /api/targets - creates a new target', function (t) {
 })
 
 test.serial.cb(
+  'POST /api/targets - returns 400 for invalid JSON',
+  function (t) {
+    var opts = { method: 'POST', encoding: 'json' }
+
+    servertest(server(), API_URLS.TARGETS, opts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 400, 'correct statusCode')
+      t.truthy(res.body.error, 'should have error message')
+      t.end()
+    }).end('invalid json')
+  }
+)
+
+test.serial.cb(
+  'POST /api/targets - returns 400 for invalid value format',
+  function (t) {
+    var invalidTarget = {
+      url: 'http://example.com',
+      value: 'not-a-number',
+      maxAcceptsPerDay: '10',
+      accept: { geoState: { $in: ['ca'] } }
+    }
+    var opts = { method: 'POST', encoding: 'json' }
+
+    servertest(server(), API_URLS.TARGETS, opts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 400, 'correct statusCode')
+      t.truthy(res.body.error, 'should have error message')
+      t.end()
+    }).end(JSON.stringify(invalidTarget))
+  }
+)
+
+test.serial.cb(
+  'POST /api/targets - returns 400 for invalid maxAcceptsPerDay',
+  function (t) {
+    var invalidTarget = {
+      url: 'http://example.com',
+      value: '0.50',
+      maxAcceptsPerDay: 'not-a-number',
+      accept: { geoState: { $in: ['ca'] } }
+    }
+    var opts = { method: 'POST', encoding: 'json' }
+
+    servertest(server(), API_URLS.TARGETS, opts, function (err, res) {
+      t.falsy(err, 'no error')
+      t.is(res.statusCode, 400, 'correct statusCode')
+      t.truthy(res.body.error, 'should have error message')
+      t.end()
+    }).end(JSON.stringify(invalidTarget))
+  }
+)
+
+test.serial.cb(
   'GET /api/targets - returns empty array when no targets exist',
   function (t) {
     servertest(
@@ -283,6 +337,29 @@ test.serial.cb(
 )
 
 test.serial.cb(
+  'POST /api/target/:id - returns 400 for invalid JSON',
+  function (t) {
+    var originalData = Object.assign({}, TEST_DATA.TARGET_SIMPLE)
+
+    createTarget(originalData, function (err, createRes) {
+      t.falsy(err, 'no error creating target')
+      t.is(createRes.statusCode, 201, 'target created successfully')
+
+      var createdTarget = createRes.body
+      var url = API_URLS.TARGET_BY_ID + createdTarget.id
+      var opts = { method: 'POST', encoding: 'json' }
+
+      servertest(server(), url, opts, function (err, res) {
+        t.falsy(err, 'no error')
+        t.is(res.statusCode, 400, 'correct statusCode')
+        t.truthy(res.body.error, 'should have error message')
+        t.end()
+      }).end('invalid json')
+    })
+  }
+)
+
+test.serial.cb(
   'POST /route - accepts visitor matching target criteria',
   function (t) {
     var targetData = Object.assign({}, TEST_DATA.TARGET_BASIC)
@@ -453,6 +530,58 @@ test.serial.cb(
       t.is(res.statusCode, 400, 'correct statusCode')
       t.truthy(res.body.error, 'should have error message')
       t.end()
+    })
+  }
+)
+
+test.serial.cb('POST /route - returns 400 for invalid JSON', function (t) {
+  var opts = { method: 'POST', encoding: 'json' }
+
+  servertest(server(), API_URLS.ROUTE, opts, function (err, res) {
+    t.falsy(err, 'no error')
+    t.is(res.statusCode, 400, 'correct statusCode')
+    t.truthy(res.body.error, 'should have error message')
+    t.end()
+  }).end('invalid json')
+})
+
+test.serial.cb(
+  'POST /route - handles multiple targets with same value correctly',
+  function (t) {
+    var targetData1 = {
+      url: 'http://example1.com',
+      value: '0.50',
+      maxAcceptsPerDay: '10',
+      accept: { geoState: { $in: ['ca'] } }
+    }
+    var targetData2 = {
+      url: 'http://example2.com',
+      value: '0.50',
+      maxAcceptsPerDay: '10',
+      accept: { geoState: { $in: ['ca'] } }
+    }
+    var visitorInfo = Object.assign({}, TEST_DATA.VISITOR_VALID)
+
+    createTarget(targetData1, function (err, res1) {
+      t.falsy(err, 'no error creating first target')
+      t.is(res1.statusCode, 201, 'first target created')
+
+      createTarget(targetData2, function (err, res2) {
+        t.falsy(err, 'no error creating second target')
+        t.is(res2.statusCode, 201, 'second target created')
+
+        routeVisitor(visitorInfo, function (err, res) {
+          t.falsy(err, 'no error')
+          t.is(res.statusCode, 200, 'correct statusCode')
+          t.is(res.body.decision, 'accept', 'should accept visitor')
+          t.true(
+            res.body.url === targetData1.url ||
+              res.body.url === targetData2.url,
+            'should return one of the target urls'
+          )
+          t.end()
+        })
+      })
     })
   }
 )
